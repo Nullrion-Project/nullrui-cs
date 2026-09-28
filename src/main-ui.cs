@@ -4,6 +4,7 @@ using System.Numerics;
 
 namespace raygui
 {
+    // Retained Mode Gui (RMUI)
     public abstract class Element
     {
         public Vector2 Position { get; set; }
@@ -22,12 +23,12 @@ namespace raygui
         public abstract void DrawElement(float? relX = null, float? relY = null);
     }
     
-    public class Buttton : Element
+    public class Button : Element
     {
         public Action? OnHover { get; set; }
-        public Action<Buttton>? OnClick { get; set; }
-        public Action<Buttton>? OnHoverEnter { get; set; }
-        public Action<Buttton>? OnHoverLeave { get; set; }
+        public Action<Button>? OnClick { get; set; }
+        public Action<Button>? OnHoverEnter { get; set; }
+        public Action<Button>? OnHoverLeave { get; set; }
 
         public string Text { get; set; } = string.Empty;
         public float FontSize { get; set; } = 14f;
@@ -51,6 +52,7 @@ namespace raygui
                 OnHover?.Invoke();
             } else
             {
+                ImGui.IsHoveringInterface = false;
                 if (_isHover)
                 {
                     _isHover = false;
@@ -69,7 +71,7 @@ namespace raygui
             Rectangle frameRect = new(finalPosition - finalOrigin, finalSize);
             CheckHover(ref frameRect);
 
-            Raylib.DrawRectanglePro(frameRect, Vector2.Zero, Rotation, Color);
+            Raylib.DrawRectangleRec(frameRect, Color);
 
             // Draw Button Text
             Font currentFont = Raylib.GetFontDefault();
@@ -81,8 +83,9 @@ namespace raygui
                 fontSize *= (frameRect.Width / measuredText.X) * 0.8f;
                 measuredText = Raylib.MeasureTextEx(currentFont, Text, fontSize, 1);
             }
-
-            Raylib.DrawTextPro(currentFont, Text, finalPosition + (Size / 2), measuredText / 2, Rotation, fontSize, 1, Color.Black);
+            int textX = (int)(frameRect.X + (frameRect.Width - measuredText.X) / 2);
+            int textY = (int)(frameRect.Y + (frameRect.Height - fontSize) / 2);
+            Raylib.DrawTextPro(currentFont, Text, new(textX, textY), Vector2.Zero, Rotation, fontSize, 1, Color.Black);
 
             for (int i=0; i < Children.Count; i++)
             {
@@ -131,6 +134,54 @@ namespace raygui
             // TODO: sumthing lol
         }
     }
+
+    // Immediate Mode Gui (IMUI)
+    public class ImGui
+    {
+        public static bool IsHoveringInterface { get; internal set; } = false;
+        public static bool Button(Rectangle bounds, string text)
+        {
+            Vector2 mousePos = Raylib.GetMousePosition();
+            bool hovered = Raylib.CheckCollisionPointRec(mousePos, bounds);
+            bool clicked = false;
+
+            // Visual feedback based on state
+            Color btnColor = new(40, 40, 40);
+
+            if (hovered)
+            {
+                if (Raylib.IsMouseButtonDown(MouseButton.Left))
+                {
+                    btnColor = new(125, 125, 125); // Active / Pressed visual
+                }
+                else
+                {
+                    btnColor = new(80, 80, 80); // Hovered visual
+                }
+
+                // Click activates on release or press (press is simplest for UI buttons)
+                if (Raylib.IsMouseButtonPressed(MouseButton.Left))
+                {
+                    clicked = true;
+                }
+
+                IsHoveringInterface = true;
+            } else if (IsHoveringInterface && !hovered) IsHoveringInterface = false;
+
+            // 1. Draw background
+            Raylib.DrawRectangleRec(bounds, btnColor);
+
+            // 2. Draw text centered
+            int fontSize = 16;
+            int textWidth = Raylib.MeasureText(text, fontSize);
+            int textX = (int)(bounds.X + (bounds.Width - textWidth) / 2);
+            int textY = (int)(bounds.Y + (bounds.Height - fontSize) / 2);
+            Raylib.DrawText(text, textX, textY, fontSize, Color.White);
+
+            // 3. Return outcome immediately
+            return clicked;
+        }
+    }
 }
 namespace raygui.math
 {
@@ -141,7 +192,6 @@ namespace raygui.math
         Vertical,
         Both,
     }
-
     public static class AxisCalculation
     {
         public static Vector2 Calculate(Vector2 v2d, Axis axis, float relX, float relY)
@@ -155,5 +205,11 @@ namespace raygui.math
                 _ => v2d,
             };
         }
+    }
+
+    public enum ListLayout
+    {
+        Horizontal,
+        Vertical,
     }
 }
